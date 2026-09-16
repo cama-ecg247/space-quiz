@@ -283,6 +283,9 @@
     }
     .feedback.correct { color: var(--correct); }
     .feedback.wrong { color: var(--wrong); }
+    .next-action {
+      margin-top: 16px;
+    }
 
     .button {
       display: inline-flex;
@@ -469,6 +472,7 @@
         <h2 id="question"></h2>
         <div id="answers" class="answers" role="group" aria-label="Answer choices"></div>
         <p id="feedback" class="feedback" aria-live="polite"></p>
+        <button id="next-question" class="button next-action" type="button" hidden disabled>Next question</button>
       </div>
 
       <div id="results" class="results">
@@ -516,6 +520,9 @@
       $("progress-bar").style.width = `${((current + 1) / questions.length) * 100}%`;
       $("feedback").textContent = "";
       $("feedback").className = "feedback";
+      $("next-question").hidden = true;
+      $("next-question").disabled = true;
+      $("next-question").textContent = current === questions.length - 1 ? "See results" : "Next question";
       $("answers").innerHTML = item.a.map((answer, index) =>
         `<button class="answer" type="button" data-index="${index}">
           <span class="answer-key">${letters[index]}</span><span>${answer}</span>
@@ -549,10 +556,15 @@
         $("feedback").textContent = `Not quite — ${item.note}`;
         $("feedback").className = "feedback wrong";
       }
-      window.setTimeout(() => {
-        current++;
-        current < questions.length ? renderQuestion() : showResults();
-      }, 1150);
+      $("next-question").hidden = false;
+      $("next-question").disabled = false;
+      $("next-question").focus();
+    }
+
+    function goNextQuestion() {
+      if (!locked) return;
+      current++;
+      current < questions.length ? renderQuestion() : showResults();
     }
 
     function showResults() {
@@ -599,6 +611,7 @@
       $("results").classList.remove("visible");
       renderQuestion();
     });
+    $("next-question").addEventListener("click", goNextQuestion);
 
     renderQuestion();
   </script>
