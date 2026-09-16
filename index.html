@@ -277,7 +277,7 @@
     }
 
     .feedback {
-      min-height: 25px;
+      min-height: 4.5em;
       margin: 19px 0 0;
       font-size: 14px;
       font-weight: 700;
@@ -286,6 +286,17 @@
     .feedback.wrong { color: var(--wrong); }
     .next-action {
       margin-top: 16px;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateY(4px);
+    }
+    .next-action.visible {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: translateY(0);
+      transition: opacity .35s ease, transform .35s ease;
     }
 
     .button {
@@ -479,7 +490,7 @@
         <h2 id="question"></h2>
         <div id="answers" class="answers" role="group" aria-label="Answer choices"></div>
         <p id="feedback" class="feedback" aria-live="polite"></p>
-        <button id="next-question" class="button next-action" type="button" hidden disabled>Next question</button>
+        <button id="next-question" class="button next-action" type="button" disabled>Next question</button>
       </div>
 
       <div id="results" class="results">
@@ -515,19 +526,24 @@
     let score = 0;
     let answerHistory = [];
     let locked = false;
+    let nextRevealTimer = null;
     const $ = (id) => document.getElementById(id);
     const letters = ["A", "B", "C", "D"];
 
     function renderQuestion() {
       const item = questions[current];
       locked = false;
+      if (nextRevealTimer !== null) {
+        window.clearTimeout(nextRevealTimer);
+        nextRevealTimer = null;
+      }
       $("question").textContent = item.q;
       $("question-count").textContent = `Question ${current + 1} of ${questions.length}`;
       $("percent").textContent = `${Math.round(((current + 1) / questions.length) * 100)}%`;
       $("progress-bar").style.width = `${((current + 1) / questions.length) * 100}%`;
       $("feedback").textContent = "";
       $("feedback").className = "feedback";
-      $("next-question").hidden = true;
+      $("next-question").classList.remove("visible");
       $("next-question").disabled = true;
       $("next-question").textContent = current === questions.length - 1 ? "See results" : "Next question";
       $("answers").innerHTML = item.a.map((answer, index) =>
@@ -563,9 +579,14 @@
         $("feedback").textContent = `Not quite — ${item.note}`;
         $("feedback").className = "feedback wrong";
       }
-      $("next-question").hidden = false;
-      $("next-question").disabled = false;
-      $("next-question").focus();
+      nextRevealTimer = window.setTimeout(() => {
+        $("next-question").disabled = false;
+        window.requestAnimationFrame(() => {
+          $("next-question").classList.add("visible");
+          $("next-question").focus();
+        });
+        nextRevealTimer = null;
+      }, 2000);
     }
 
     function goNextQuestion() {
@@ -612,6 +633,10 @@
       current = 0;
       score = 0;
       answerHistory = [];
+      if (nextRevealTimer !== null) {
+        window.clearTimeout(nextRevealTimer);
+        nextRevealTimer = null;
+      }
       $("score").textContent = "0";
       $("review-list").innerHTML = "";
       $("quiz").classList.remove("hidden");
