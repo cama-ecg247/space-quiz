@@ -364,6 +364,68 @@
       line-height: 1;
     }
     .final-score span { color: var(--muted); font-size: 18px; font-weight: 700; letter-spacing: 0; }
+    .review-wrap {
+      margin: 0 0 30px;
+      padding: 16px;
+      border: 2px solid var(--line);
+      background: color-mix(in srgb, var(--card-solid) 74%, var(--bg));
+      text-align: left;
+    }
+    .review-heading {
+      margin: 0 0 14px;
+      font-size: 18px;
+      letter-spacing: .02em;
+      text-transform: uppercase;
+    }
+    .review-list {
+      margin: 0;
+      padding-left: 24px;
+      display: grid;
+      gap: 10px;
+    }
+    .review-item {
+      padding: 10px 12px;
+      border: 2px solid var(--line);
+      background: var(--card-solid);
+    }
+    .review-item.correct {
+      border-color: var(--correct);
+      background: var(--correct-soft);
+    }
+    .review-item.wrong {
+      border-color: var(--wrong);
+      background: var(--wrong-soft);
+    }
+    .review-question {
+      margin: 0 0 8px;
+      font-weight: 700;
+    }
+    .review-status {
+      display: inline-block;
+      margin-bottom: 8px;
+      padding: 1px 7px;
+      border: 1px solid currentColor;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .review-item.correct .review-status { color: var(--correct); }
+    .review-item.wrong .review-status { color: var(--wrong); }
+    .review-answer {
+      margin: 0;
+      font-size: 14px;
+      color: var(--ink);
+    }
+    .review-answer + .review-answer {
+      margin-top: 5px;
+    }
+    .review-answer strong {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
 
     @keyframes shake {
       0%, 100% { transform: translateX(0); }
@@ -415,6 +477,10 @@
         <h2 id="result-title">Stellar work!</h2>
         <p id="result-message" class="result-message"></p>
         <div class="final-score"><span id="final-score">0</span><span> / 10 correct</span></div>
+        <section class="review-wrap" aria-labelledby="review-heading">
+          <h3 id="review-heading" class="review-heading">Question review</h3>
+          <ol id="review-list" class="review-list"></ol>
+        </section>
         <button id="restart" class="button secondary" type="button">Play again</button>
       </div>
     </section>
@@ -436,6 +502,7 @@
 
     let current = 0;
     let score = 0;
+    let answerHistory = [];
     let locked = false;
     const $ = (id) => document.getElementById(id);
     const letters = ["A", "B", "C", "D"];
@@ -464,6 +531,7 @@
       if (locked) return;
       locked = true;
       const item = questions[current];
+      answerHistory[current] = selected;
       const buttons = $("answers").querySelectorAll(".answer");
       const isCorrect = selected === item.c;
       buttons.forEach((button, index) => {
@@ -491,6 +559,7 @@
       $("quiz").classList.add("hidden");
       $("results").classList.add("visible");
       $("final-score").textContent = score;
+      renderReview();
       const result = score === 10
         ? ["🌟", "Perfect orbit!", "You aced every mission objective. The cosmos salutes you."]
         : score >= 8
@@ -505,10 +574,27 @@
       $("restart").focus();
     }
 
+    function renderReview() {
+      $("review-list").innerHTML = questions.map((item, index) => {
+        const selectedIndex = answerHistory[index];
+        const isCorrect = selectedIndex === item.c;
+        const selectedAnswer = selectedIndex === undefined ? "No answer selected" : item.a[selectedIndex];
+        const correctAnswer = item.a[item.c];
+        return `<li class="review-item ${isCorrect ? "correct" : "wrong"}">
+          <p class="review-question">${index + 1}. ${item.q}</p>
+          <span class="review-status">${isCorrect ? "Correct" : "Incorrect"}</span>
+          <p class="review-answer"><strong>Your answer:</strong> ${selectedAnswer}</p>
+          ${isCorrect ? "" : `<p class="review-answer"><strong>Correct answer:</strong> ${correctAnswer}</p>`}
+        </li>`;
+      }).join("");
+    }
+
     $("restart").addEventListener("click", () => {
       current = 0;
       score = 0;
+      answerHistory = [];
       $("score").textContent = "0";
+      $("review-list").innerHTML = "";
       $("quiz").classList.remove("hidden");
       $("results").classList.remove("visible");
       renderQuestion();
