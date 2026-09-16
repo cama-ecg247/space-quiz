@@ -46,6 +46,7 @@
     }
 
     * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
     body {
       min-height: 100vh;
       margin: 0;
@@ -276,13 +277,27 @@
     }
 
     .feedback {
-      min-height: 25px;
+      min-height: 4.5em;
       margin: 19px 0 0;
       font-size: 14px;
       font-weight: 700;
     }
     .feedback.correct { color: var(--correct); }
     .feedback.wrong { color: var(--wrong); }
+    .next-action {
+      margin-top: 16px;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateY(4px);
+    }
+    .next-action.visible {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: translateY(0);
+      transition: opacity .35s ease, transform .35s ease;
+    }
 
     .button {
       display: inline-flex;
@@ -301,10 +316,16 @@
       cursor: pointer;
       transition: background .2s, transform .2s, box-shadow .2s;
     }
-    .button:hover { background: var(--accent-dark); transform: translate(-3px, -3px); box-shadow: 8px 8px 0 var(--line); }
+    .button:hover:not(:disabled) { background: var(--accent-dark); transform: translate(-3px, -3px); box-shadow: 8px 8px 0 var(--line); }
     .button.secondary { color: var(--accent); background: var(--accent-soft); box-shadow: none; }
-    .button.secondary:hover { background: var(--line); }
+    .button.secondary:hover:not(:disabled) { background: var(--line); }
     .button:active { transform: translate(0, 0); box-shadow: 2px 2px 0 var(--line); }
+    .button:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
 
     .results { display: none; text-align: center; }
     .results.visible { display: block; animation: appear .5s ease-out; }
@@ -364,6 +385,68 @@
       line-height: 1;
     }
     .final-score span { color: var(--muted); font-size: 18px; font-weight: 700; letter-spacing: 0; }
+    .review-wrap {
+      margin: 0 0 30px;
+      padding: 16px;
+      border: 2px solid var(--line);
+      background: color-mix(in srgb, var(--card-solid) 74%, var(--bg));
+      text-align: left;
+    }
+    .review-heading {
+      margin: 0 0 14px;
+      font-size: 18px;
+      letter-spacing: .02em;
+      text-transform: uppercase;
+    }
+    .review-list {
+      margin: 0;
+      padding-left: 24px;
+      display: grid;
+      gap: 10px;
+    }
+    .review-item {
+      padding: 10px 12px;
+      border: 2px solid var(--line);
+      background: var(--card-solid);
+    }
+    .review-item.correct {
+      border-color: var(--correct);
+      background: var(--correct-soft);
+    }
+    .review-item.wrong {
+      border-color: var(--wrong);
+      background: var(--wrong-soft);
+    }
+    .review-question {
+      margin: 0 0 8px;
+      font-weight: 700;
+    }
+    .review-status {
+      display: inline-block;
+      margin-bottom: 8px;
+      padding: 1px 7px;
+      border: 1px solid currentColor;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .review-item.correct .review-status { color: var(--correct); }
+    .review-item.wrong .review-status { color: var(--wrong); }
+    .review-answer {
+      margin: 0;
+      font-size: 14px;
+      color: var(--ink);
+    }
+    .review-answer + .review-answer {
+      margin-top: 5px;
+    }
+    .review-answer strong {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
 
     @keyframes shake {
       0%, 100% { transform: translateX(0); }
@@ -407,6 +490,7 @@
         <h2 id="question"></h2>
         <div id="answers" class="answers" role="group" aria-label="Answer choices"></div>
         <p id="feedback" class="feedback" aria-live="polite"></p>
+        <button id="next-question" class="button next-action" type="button" disabled>Next question</button>
       </div>
 
       <div id="results" class="results">
@@ -415,6 +499,10 @@
         <h2 id="result-title">Stellar work!</h2>
         <p id="result-message" class="result-message"></p>
         <div class="final-score"><span id="final-score">0</span><span> / 10 correct</span></div>
+        <section class="review-wrap" aria-labelledby="review-heading">
+          <h3 id="review-heading" class="review-heading">Question review</h3>
+          <ol id="review-list" class="review-list"></ol>
+        </section>
         <button id="restart" class="button secondary" type="button">Play again</button>
       </div>
     </section>
@@ -436,19 +524,28 @@
 
     let current = 0;
     let score = 0;
+    let answerHistory = [];
     let locked = false;
+    let nextRevealTimer = null;
     const $ = (id) => document.getElementById(id);
     const letters = ["A", "B", "C", "D"];
 
     function renderQuestion() {
       const item = questions[current];
       locked = false;
+      if (nextRevealTimer !== null) {
+        window.clearTimeout(nextRevealTimer);
+        nextRevealTimer = null;
+      }
       $("question").textContent = item.q;
       $("question-count").textContent = `Question ${current + 1} of ${questions.length}`;
       $("percent").textContent = `${Math.round(((current + 1) / questions.length) * 100)}%`;
       $("progress-bar").style.width = `${((current + 1) / questions.length) * 100}%`;
       $("feedback").textContent = "";
       $("feedback").className = "feedback";
+      $("next-question").classList.remove("visible");
+      $("next-question").disabled = true;
+      $("next-question").textContent = current === questions.length - 1 ? "See results" : "Next question";
       $("answers").innerHTML = item.a.map((answer, index) =>
         `<button class="answer" type="button" data-index="${index}">
           <span class="answer-key">${letters[index]}</span><span>${answer}</span>
@@ -464,6 +561,7 @@
       if (locked) return;
       locked = true;
       const item = questions[current];
+      answerHistory[current] = selected;
       const buttons = $("answers").querySelectorAll(".answer");
       const isCorrect = selected === item.c;
       buttons.forEach((button, index) => {
@@ -481,16 +579,27 @@
         $("feedback").textContent = `Not quite — ${item.note}`;
         $("feedback").className = "feedback wrong";
       }
-      window.setTimeout(() => {
-        current++;
-        current < questions.length ? renderQuestion() : showResults();
-      }, 1150);
+      nextRevealTimer = window.setTimeout(() => {
+        $("next-question").disabled = false;
+        window.requestAnimationFrame(() => {
+          $("next-question").classList.add("visible");
+          $("next-question").focus();
+        });
+        nextRevealTimer = null;
+      }, 2000);
+    }
+
+    function goNextQuestion() {
+      if (!locked) return;
+      current++;
+      current < questions.length ? renderQuestion() : showResults();
     }
 
     function showResults() {
       $("quiz").classList.add("hidden");
       $("results").classList.add("visible");
       $("final-score").textContent = score;
+      renderReview();
       const result = score === 10
         ? ["🌟", "Perfect orbit!", "You aced every mission objective. The cosmos salutes you."]
         : score >= 8
@@ -505,14 +614,36 @@
       $("restart").focus();
     }
 
+    function renderReview() {
+      $("review-list").innerHTML = questions.map((item, index) => {
+        const selectedIndex = answerHistory[index];
+        const isCorrect = selectedIndex === item.c;
+        const selectedAnswer = selectedIndex === undefined ? "No answer selected" : item.a[selectedIndex];
+        const correctAnswer = item.a[item.c];
+        return `<li class="review-item ${isCorrect ? "correct" : "wrong"}">
+          <p class="review-question">${index + 1}. ${item.q}</p>
+          <span class="review-status">${isCorrect ? "Correct" : "Incorrect"}</span>
+          <p class="review-answer"><strong>Your answer:</strong> ${selectedAnswer}</p>
+          ${isCorrect ? "" : `<p class="review-answer"><strong>Correct answer:</strong> ${correctAnswer}</p>`}
+        </li>`;
+      }).join("");
+    }
+
     $("restart").addEventListener("click", () => {
       current = 0;
       score = 0;
+      answerHistory = [];
+      if (nextRevealTimer !== null) {
+        window.clearTimeout(nextRevealTimer);
+        nextRevealTimer = null;
+      }
       $("score").textContent = "0";
+      $("review-list").innerHTML = "";
       $("quiz").classList.remove("hidden");
       $("results").classList.remove("visible");
       renderQuestion();
     });
+    $("next-question").addEventListener("click", goNextQuestion);
 
     renderQuestion();
   </script>
